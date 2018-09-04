@@ -27,12 +27,13 @@ if __name__ == '__main__':
     parser.add_argument("--scale", type=int, default=2)
     parser.add_argument("--stride", type=int, default=14)#14 for training, lable_size for inference
     parser.add_argument("--checkpoint_dir", default="checkpoint")
-    parser.add_argument("--cpkt_itr", default=26500)#set -1 for training from scratch, None for latest
+    parser.add_argument("--cpkt_itr", default=100)#set 0 for training from scratch, -1 for latest
     parser.add_argument("--result_dir", default="result")
     parser.add_argument("--train_subdir", default="mytrainset")
-    parser.add_argument("--test_imgpath", default="Set5/bird_GT.bmp")
-    parser.add_argument("--infer_imgpath", default="0.jpg")
-    parser.add_argument("--is_train", default="inference", choices = ["train", "test", "inference"] )
+    parser.add_argument("--test_subdir", default="Set5")
+    parser.add_argument("--infer_subdir", default="custom")
+    parser.add_argument("--infer_imgpath", default="3.bmp")
+    parser.add_argument("--mode", default="inference", choices = ["train", "test", "inference"] )
     parser.add_argument("--save_extension", default=".jpg", choices = ["jpg", "png"])
 
     args = parser.parse_args()
@@ -45,8 +46,8 @@ if __name__ == '__main__':
         os.makedirs(os.path.join(os.getcwd(),args.checkpoint_dir))
     if not os.path.exists(os.path.join(os.getcwd(),args.result_dir)):
         os.makedirs(os.path.join(os.getcwd(),args.result_dir))
-    if not os.path.exists(os.path.join(os.getcwd(),args.result_dir,args.is_train)):
-        os.makedirs(os.path.join(os.getcwd(),args.result_dir,args.is_train))
+    if not os.path.exists(os.path.join(os.getcwd(),args.result_dir,args.mode)):
+        os.makedirs(os.path.join(os.getcwd(),args.result_dir,args.mode))
     
     
 #=======================================================
@@ -58,15 +59,14 @@ if __name__ == '__main__':
     #-----------------------------------
     # build model
     #-----------------------------------
-        srcnn = SRCNN(sess,
-                      image_size=args.image_size,
-                      label_size=args.label_size,
-                      batch_size=args.batch_size,
-                      c_dim=args.c_dim,
-                      checkpoint_dir=args.checkpoint_dir,
-                      result_dir=args.result_dir)
+        srcnn = SRCNN(sess, args= args)
 
     #-----------------------------------
     # train, test, inferecnce
     #-----------------------------------
-        srcnn.train(args)
+        if args.mode == "train":
+            srcnn.train()
+        elif args.mode == "test":
+            srcnn.test()
+        elif args.mode == "inference":
+            srcnn.inference(args.infer_imgpath)
