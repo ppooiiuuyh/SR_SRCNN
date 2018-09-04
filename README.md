@@ -16,6 +16,8 @@ Tensorflow implementation of Convolutional Neural Networks for super-resolution.
  * This code supports data augmentation (rotation and mirror flip)
  * This code supports custom dataset
 
+## Issuses
+ * saturation of result image is little hifger than original. It seems like resulting from clipping.
 
 ## Usage
 ```
@@ -57,9 +59,31 @@ For inference with cumstom dataset, `python main.py --mode inference --infer_img
 For running tensorboard, `tensorboard --logdir=./board` then access localhost:6006 with your browser
 
 ## Result
-![orig](https://github.com/tegg89/SRCNN-Tensorflow/blob/master/result/orig.png)<br>
-![bicubic](https://github.com/tegg89/SRCNN-Tensorflow/blob/master/result/bicubic.png)<br>
-![srcnn](https://github.com/tegg89/SRCNN-Tensorflow/blob/master/result/srcnn.png)
+<p align="center">
+<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/3.bmp" width="400">
+</p>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/3.bmp100.jpg" width="400">
+</p>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/3compare.png" width="400">
+</p>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/srcnn_result1.png" width="400">
+</p>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/srcnn_result2.png" width="400">
+
+</p>
+<p align="center">
+<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/srcnn_result3.png" width="400">
+</p>
+
+
 
 ## References
 * [tegg89/SRCNN-Tensorflow](https://github.com/tegg89/SRCNN-Tensorflow) : reference source code
