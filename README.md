@@ -53,10 +53,10 @@ optional arguments:
   --save_extension {jpg,png}
 ```
 
-For training, `python main.py --mode train --check_itr 0` [set 0 for training from scratch, -1 for latest]
-For testing, `python main.py --mode test`
-For inference with cumstom dataset, `python main.py --mode inference --infer_imgpath 3.bmp` [result will be generated in ./result/inference]
-For running tensorboard, `tensorboard --logdir=./board` then access localhost:6006 with your browser
+ * For training, `python main.py --mode train --check_itr 0` [set 0 for training from scratch, -1 for latest]
+ * For testing, `python main.py --mode test`
+ * For inference with cumstom dataset, `python main.py --mode inference --infer_imgpath 3.bmp` [result will be generated in ./result/inference]
+ * For running tensorboard, `tensorboard --logdir=./board` then access localhost:6006 with your browser
 
 ## Result
 <p align="center">
