@@ -12,46 +12,89 @@ from PIL import Image  # for loading images as YCbCr format
 import scipy.misc
 import scipy.ndimage
 import numpy as np
-import cv2
+
+import tensorflow as tf
 
 
 
+def read_data(path):
+  """
+  Read h5 format data file
+  
+  Args:
+    path: file path of desired file
+    data: '.h5' file format that contains train data values
+    label: '.h5' file format that contains train label values
+  """
+  with h5py.File(path, 'r') as hf:
+    data = np.array(hf.get('data'))
+    label = np.array(hf.get('label'))
+    return data, label
 
-def preprocess(path, args):
-    image = plt.imread(path)
-    image_croped = modcrop(image, args.scale)
+def preprocess(path, scale=3):
+  """
+  Preprocess single image file 
+    (1) Read original image as YCbCr format (and grayscale as default)
+    (2) Normalize
+    (3) Apply image file with bicubic interpolation
+
+  Args:
+    path: file path of desired file
+    input_: image applied bicubic interpolation (low-resolution)
+    label_: image with original resolution (high-resolution)
+  """
+  image = imread(path, is_grayscale=True)
+  label_ = modcrop(image, scale)
+
+  # Must be normalized
+  image = image / 255.
+  label_ = label_ / 255.
+
+  input_ = scipy.ndimage.interpolation.zoom(label_, (1./scale), prefilter=False)
+  input_ = scipy.ndimage.interpolation.zoom(input_, (scale/1.), prefilter=False)
+
+  return input_, label_
+
+def prepare_data(sess, dataset):
+  """
+  Args:
+    dataset: choose train dataset or test dataset
     
-    # Must be normalized
-    image_croped = image_croped / 255.
+    For train dataset, output data would be ['.../t1.bmp', '.../t2.bmp', ..., '.../t99.bmp']
+  """
+  if FLAGS.is_train:
+    filenames = os.listdir(dataset)
+    data_dir = os.path.join(os.getcwd(), dataset)
+    data = glob.glob(os.path.join(data_dir, "*.bmp"))
+  else:
+    data_dir = os.path.join(os.sep, (os.path.join(os.getcwd(), dataset)), "Set5")
+    data = glob.glob(os.path.join(data_dir, "*.bmp"))
 
-    if args.mode == "train" or args.mode == "test":
-        label_ = image_croped
-        input_ = scipy.ndimage.interpolation.zoom(image_croped, [(1./args.scale),(1./args.scale),1], prefilter=False)
-        input_ = scipy.ndimage.interpolation.zoom(input_, [(args.scale/1.),(args.scale/1.),1] , prefilter=False)
-        return input_,label_
+  return data
 
-    elif args.mode == "inference":
-        input_ = scipy.ndimage.interpolation.zoom(image_croped, [(args.scale / 1.), (args.scale / 1.), 1], prefilter=False)
-        return input_
+def make_data(sess, data, label):
+  """
+  Make input data as h5 file format
+  Depending on 'is_train' (flag value), savepath would be changed.
+  """
+  if FLAGS.is_train:
+    savepath = os.path.join(os.getcwd(), 'checkpoint/train.h5')
+  else:
+    savepath = os.path.join(os.getcwd(), 'checkpoint/test.h5')
 
+  with h5py.File(savepath, 'w') as hf:
+    hf.create_dataset('data', data=data)
+    hf.create_dataset('label', data=label)
 
-
-def prepare_data(sess, args, mode):
-    if args.mode == "train":
-        data_dir = os.path.join(os.getcwd(), args.mode, args.train_subdir)
-        data = glob.glob(os.path.join(data_dir, "*"))
- 
-    elif args.mode == "test":
-        data_dir = os.path.join(os.getcwd(), args.mode, args.test_subdir)
-        data = glob.glob(os.path.join(data_dir, "*"))
- 
-    elif args.mode == "inference":
-        data_dir = os.path.join(os.getcwd(), args.mode, args.infer_subdir)
-        data = glob.glob(os.path.join(data_dir, args.infer_imgpath))
-    return data
-
-
-
+def imread(path, is_grayscale=True):
+  """
+  Read image using its path.
+  Default value is gray-scale, and image is read by YCbCr format as the paper said.
+  """
+  if is_grayscale:
+    return scipy.misc.imread(path, flatten=True, mode='YCbCr').astype(np.float)
+  else:
+    return scipy.misc.imread(path, mode='YCbCr').astype(np.float)
 
 def modcrop(image, scale=3):
   """
@@ -73,142 +116,86 @@ def modcrop(image, scale=3):
     image = image[0:h, 0:w]
   return image
 
+def input_setup(sess, config):
+  """
+  Read image files and make their sub-images and saved them as a h5 file format.
+  """
+  # Load data path
+  if config.is_train:
+    data = prepare_data(sess, dataset="Train")
+  else:
+    data = prepare_data(sess, dataset="Test")
 
+  sub_input_sequence = []
+  sub_label_sequence = []
+  padding = abs(config.image_size - config.label_size) / 2 # 6
 
-def augumentation(img_sequence):
-    augmented_sequence = []
-    for img in img_sequence:
-        for _ in range(4):
-            rot_img = np.rot90(img)
-            augmented_sequence.append(rot_img)
-            
-        flipped_img = np.fliplr(img)
-        
-        for _ in range(4):
-            rot_flipped_img = np.rot90(flipped_img)
-            augmented_sequence.append(rot_flipped_img)
-            
+  if config.is_train:
+    for i in xrange(len(data)):
+      input_, label_ = preprocess(data[i], config.scale)
 
-    img_sequence.extend(augmented_sequence)
-    return img_sequence
-
-
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-def input_setup(sess, args, mode):
-#===========================================================
-# [input setup] / split image
-#===========================================================
-    sub_input_sequence = []
-    sub_label_sequence = []
-    padding = abs(args.image_size - args.label_size) / 2 # 6
-
-
-#----------------------------------------------------------------
-# [input setup] / split image - for trainset and testset
-#----------------------------------------------------------------
-    if mode == "train" or mode == "test":
-        data = prepare_data(sess, args=args, mode=mode)
-        for i in range(len(data)):
-            input_, label_ = preprocess(data[i],args) #normalized full-size image
-            h, w, _ = input_.shape #only for R,G,B image
-            
-            for x in range(0, h-args.image_size+1, args.stride):
-                for y in range(0, w-args.image_size+1, args.stride):
-                    sub_input = input_[x:x+args.image_size, y:y+args.image_size, :] # [33 x 33 x 3]
-                    sub_label = label_[x+int(padding):x+int(padding)+args.label_size, y+int(padding):y+int(padding)+args.label_size, :] # [21 x 21 x 3]
-    
-                    # Make channel value
-                    sub_input = sub_input.reshape([args.image_size, args.image_size, args.c_dim])
-                    sub_label = sub_label.reshape([args.label_size, args.label_size, args.c_dim])
-        
-                    sub_input_sequence.append(sub_input)
-                    sub_label_sequence.append(sub_label)
-                    
-        return sub_input_sequence, sub_label_sequence
-
-#----------------------------------------------------------------
-# [input setup] / split image - for inference
-#----------------------------------------------------------------
-    elif mode == "inference": #for 1 image
-        data = prepare_data(sess, args=args, mode=mode)
-        input_ = preprocess(data[0], args)
+      if len(input_.shape) == 3:
         h, w, _ = input_.shape
-        nx = ny = 0
-        for x in range(0, h - args.image_size + 1, args.label_size):
-            nx += 1
-            ny = 0
-            for y in range(0, w - args.image_size + 1, args.label_size):
-                ny += 1
-                sub_input = input_[x:x + args.image_size, y:y + args.image_size, :3]  # [33 x 33 x3]
-                sub_input = sub_input.reshape([args.image_size, args.image_size,  args.c_dim])
-                sub_input_sequence.append(sub_input)
-            
-    return nx, ny, sub_input_sequence, sub_label_sequence
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      else:
+        h, w = input_.shape
 
+      for x in range(0, h-config.image_size+1, config.stride):
+        for y in range(0, w-config.image_size+1, config.stride):
+          sub_input = input_[x:x+config.image_size, y:y+config.image_size] # [33 x 33]
+          sub_label = label_[x+int(padding):x+int(padding)+config.label_size, y+int(padding):y+int(padding)+config.label_size] # [21 x 21]
 
+          # Make channel value
+          sub_input = sub_input.reshape([config.image_size, config.image_size, 1])  
+          sub_label = sub_label.reshape([config.label_size, config.label_size, 1])
 
+          sub_input_sequence.append(sub_input)
+          sub_label_sequence.append(sub_label)
 
+  else:
+    input_, label_ = preprocess(data[2], config.scale)
+
+    if len(input_.shape) == 3:
+      h, w, _ = input_.shape
+    else:
+      h, w = input_.shape
+
+    # Numbers of sub-images in height and width of image are needed to compute merge operation.
+    nx = ny = 0 
+    for x in range(0, h-config.image_size+1, config.stride):
+      nx += 1; ny = 0
+      for y in range(0, w-config.image_size+1, config.stride):
+        ny += 1
+        sub_input = input_[x:x+config.image_size, y:y+config.image_size] # [33 x 33]
+        sub_label = label_[x+int(padding):x+int(padding)+config.label_size, y+int(padding):y+int(padding)+config.label_size] # [21 x 21]
+        
+        sub_input = sub_input.reshape([config.image_size, config.image_size, 1])  
+        sub_label = sub_label.reshape([config.label_size, config.label_size, 1])
+
+        sub_input_sequence.append(sub_input)
+        sub_label_sequence.append(sub_label)
+
+  """
+  len(sub_input_sequence) : the number of sub_input (33 x 33 x ch) in one image
+  (sub_input_sequence[0]).shape : (33, 33, 1)
+  """
+  # Make list to numpy array. With this transform
+  arrdata = np.asarray(sub_input_sequence) # [?, 33, 33, 1]
+  arrlabel = np.asarray(sub_label_sequence) # [?, 21, 21, 1]
+
+  make_data(sess, arrdata, arrlabel)
+
+  if not config.is_train:
+    return nx, ny
+    
 def imsave(image, path):
-    #image = image - np.min(image)
-    #image = image / np.max(image)
-    image = np.clip(image,0,1)
-    return plt.imsave(path,image)
-    #return scipy.misc.imsave(path, image) #why different?
+  return scipy.misc.imsave(path, image)
 
 def merge(images, size):
-    h, w = images.shape[1], images.shape[2]
-    img = np.zeros([h*size[0], w*size[1], 3])
-    for idx, image in enumerate(images):
-        i = idx % size[1]
-        j = idx // size[1]
-        img[j*h:j*h+h, i*w:i*w+w, :] = image
-    return img
+  h, w = images.shape[1], images.shape[2]
+  img = np.zeros((h*size[0], w*size[1], 1))
+  for idx, image in enumerate(images):
+    i = idx % size[1]
+    j = idx // size[1]
+    img[j*h:j*h+h, i*w:i*w+w, :] = image
 
-
-
-'''
-def make_data(sess, data, label, args):
-    """
-    Make input data as h5 file format
-    Depending on 'mode' (flag value), savepath would be changed.
-    """
-    if args.mode == "train":
-        savepath = os.path.join(os.getcwd(), 'checkpoint/train.h5')
-    elif args.mode == "test":
-        savepath = os.path.join(os.getcwd(), 'checkpoint/test.h5')
-    elif args.mode == "inference":
-        savepath = os.path.join(os.getcwd(), 'checkpoint/inference.h5')
-
-
-    with h5py.File(savepath, 'w') as hf:
-        hf.create_dataset('data', data=data)
-        hf.create_dataset('label', data=label)
-'''
-
-'''
-def read_h5data(path):
-    """
-    Read h5 format data file
-    
-    Args:
-    path: file path of desired file
-    data: '.h5' file format that contains train data values
-    label: '.h5' file format that contains train label values
-    """
-    with h5py.File(path, 'r') as hf:
-        data = np.array(hf.get('data'))
-        label = np.array(hf.get('label'))
-    return data, label
-'''
-'''
-
-#===========================================================
-# [input setup] / save h5 data
-#===========================================================
-    # Make list to numpy array. With this transform
-    arrdata = np.asarray(sub_input_sequence) # [?, 33, 33, 1]
-    arrlabel = np.asarray(sub_label_sequence) # [?, 21, 21, 1]
-    make_data(sess, arrdata, arrlabel,args=args)
-
-'''
+  return img

@@ -17,7 +17,7 @@ Tensorflow implementation of Convolutional Neural Networks for super-resolution.
  * This code supports custom dataset
 
 ## Issuses
- * saturation of result image is little hifger than original. It seems like resulting from clipping.
+ * ~~saturation of result image is little hifger than original. It seems like resulting from clipping~~ solved.
 
 ## Usage
 ```
@@ -64,7 +64,7 @@ optional arguments:
 </p>
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/3.bmp100.jpg" width="400">
+<img src="https://raw.githubusercontent.com/ppooiiuuyh/SR_SRCNN/master/asset/3.bmp900.jpg" width="400">
 </p>
 
 <p align="center">
